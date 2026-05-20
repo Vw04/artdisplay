@@ -1,81 +1,46 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta http-equiv="refresh" content="1800">
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Display</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    html, body {
-      width: 100%;
-      height: 100%;
-      background: #000;
-      overflow: hidden;
-      cursor: none;
-    }
-
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; background: #000; overflow: hidden; cursor: none; }
     #player-wrap {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      background: #000;
-      overflow: hidden;
+      position: fixed; top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background: #000; overflow: hidden;
     }
-
     #player-wrap iframe {
       position: absolute;
-      /* Scale up iframe to crop out any Vimeo UI remnants */
-      top: 50%;
-      left: 50%;
-      width: 100vw;
-      height: 56.25vw; /* 16:9 aspect ratio */
-      min-height: 100vh;
-      min-width: 177.77vh; /* 16:9 */
+      top: 50%; left: 50%;
+      width: 100vw; height: 56.25vw;
+      min-height: 100vh; min-width: 177.77vh;
       transform: translate(-50%, -50%);
-      border: none;
-      pointer-events: none;
+      border: none; pointer-events: none;
     }
-
-    /* Fade transition between videos */
     #overlay {
-      position: fixed;
-      top: 0; left: 0;
+      position: fixed; top: 0; left: 0;
       width: 100%; height: 100%;
-      background: #000;
-      opacity: 0;
+      background: #000; opacity: 0;
       transition: opacity 1.5s ease;
-      pointer-events: none;
-      z-index: 10;
+      pointer-events: none; z-index: 10;
     }
     #overlay.fade-in { opacity: 1; }
-    #overlay.fade-out { opacity: 0; }
   </style>
 </head>
 <body>
-
 <div id="overlay"></div>
-
 <div id="player-wrap">
-  <iframe
-    id="vimeo-frame"
-    frameborder="0"
+  <iframe id="vimeo-frame" frameborder="0"
     allow="autoplay; fullscreen; picture-in-picture"
-    allowfullscreen>
-  </iframe>
+    allowfullscreen></iframe>
 </div>
 
 <script src="https://player.vimeo.com/api/player.js"></script>
 <script>
-  // ── Video playlist ────────────────────────────────────────────
-  // Add or remove Vimeo numeric IDs here anytime
+  const CONTROL_SERVER = 'http://192.168.1.164:5000';
+
   const videos = [
     '662718427',
     '1163624230',
@@ -86,75 +51,12 @@
     '690350098',
   ];
 
-  // ── State ─────────────────────────────────────────────────────
   let currentIndex = 0;
   let player = null;
+  let isPaused = false;
   const overlay = document.getElementById('overlay');
-  const frame  = document.getElementById('vimeo-frame');
+  const frame = document.getElementById('vimeo-frame');
 
-  // ── Build embed URL ───────────────────────────────────────────
-  function embedURL(id) {
-    const params = new URLSearchParams({
-      autoplay:  1,
-      autopause: 0,
-      loop:      0,       // we handle looping ourselves
-      title:     0,
-      byline:    0,
-      portrait:  0,
-      controls:  0,       // no controls shown
-      muted:     0,       // sound on
-      transparent: 0,
-      background: 0,
-    });
-    return `https://player.vimeo.com/video/${id}?${params}`;
-  }
-
-  // ── Fade helpers ──────────────────────────────────────────────
-  function fadeToBlack(cb) {
-    overlay.classList.add('fade-in');
-    setTimeout(cb, 1500);
-  }
-
-  function fadeFromBlack() {
-    overlay.classList.remove('fade-in');
-    overlay.classList.add('fade-out');
-    setTimeout(() => overlay.classList.remove('fade-out'), 1500);
-  }
-
-  // ── Load a video by index ─────────────────────────────────────
-  function loadVideo(index) {
-    currentIndex = ((index % videos.length) + videos.length) % videos.length;
-    const id = videos[currentIndex];
-
-    // Destroy old player
-    if (player) {
-      player.off('ended');
-      player.off('error');
-    }
-
-    frame.src = embedURL(id);
-    player = new Vimeo.Player(frame);
-
-    player.ready().then(() => {
-      player.play().catch(() => {});
-      fadeFromBlack();
-    });
-
-    // When video ends → fade to black → load next
-    player.on('ended', () => {
-      fadeToBlack(() => loadVideo(currentIndex + 1));
-    });
-
-    // On error → skip to next after 3s
-    player.on('error', () => {
-      setTimeout(() => {
-        fadeToBlack(() => loadVideo(currentIndex + 1));
-      }, 3000);
-    });
-  }
-
-  // ── Boot ──────────────────────────────────────────────────────
-  // Shuffle so it doesn't always start on the same video
   function shuffle(arr) {
     for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -162,12 +64,78 @@
     }
   }
 
-  shuffle(videos);
+  function embedURL(id) {
+    return `https://player.vimeo.com/video/${id}?autoplay=1&loop=0&title=0&byline=0&portrait=0&controls=0&muted=0&transparent=0`;
+  }
 
-  // Start faded to black, then load first video
+  function fadeToBlack(cb) {
+    overlay.classList.add('fade-in');
+    setTimeout(cb, 1500);
+  }
+
+  function fadeFromBlack() {
+    overlay.classList.remove('fade-in');
+  }
+
+  function loadVideo(index) {
+    currentIndex = ((index % videos.length) + videos.length) % videos.length;
+    frame.src = embedURL(videos[currentIndex]);
+
+    if (player) player.off('ended');
+    player = new Vimeo.Player(frame);
+
+    player.ready().then(() => {
+      player.play().catch(() => {});
+      fadeFromBlack();
+    });
+
+    player.on('ended', () => {
+      fadeToBlack(() => loadVideo(currentIndex + 1));
+    });
+
+    player.on('error', () => {
+      setTimeout(() => fadeToBlack(() => loadVideo(currentIndex + 1)), 3000);
+    });
+  }
+
+  // Poll control server every 2 seconds for commands
+  let lastCommand = '';
+  async function pollServer() {
+    try {
+      const res = await fetch(`${CONTROL_SERVER}/state`);
+      const data = await res.json();
+
+      if (player) {
+        if (data.paused && !isPaused) {
+          player.pause();
+          isPaused = true;
+        } else if (!data.paused && isPaused) {
+          player.play();
+          isPaused = false;
+        }
+      }
+    } catch(e) {
+      // Server unreachable — continue playing
+    }
+  }
+
+  // Handle skip separately
+  async function checkSkip() {
+    try {
+      const res = await fetch(`${CONTROL_SERVER}/state`);
+      const data = await res.json();
+      if (data.skip) {
+        fadeToBlack(() => loadVideo(currentIndex + 1));
+      }
+    } catch(e) {}
+  }
+
+  shuffle(videos);
   overlay.classList.add('fade-in');
   setTimeout(() => loadVideo(0), 500);
-</script>
 
+  // Poll every 2 seconds
+  setInterval(pollServer, 2000);
+</script>
 </body>
 </html>
