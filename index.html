@@ -100,11 +100,10 @@
 
   // Poll control server every 2 seconds for commands
   let lastCommand = '';
-  async function pollServer() {
+async function pollServer() {
     try {
       const res = await fetch(`${CONTROL_SERVER}/state`);
       const data = await res.json();
-
       if (player) {
         if (data.paused && !isPaused) {
           player.pause();
@@ -115,7 +114,7 @@
         }
       }
     } catch(e) {
-      // Server unreachable — continue playing
+      // Server unreachable — do nothing
     }
   }
 
@@ -134,8 +133,8 @@
   overlay.classList.add('fade-in');
   setTimeout(() => loadVideo(0), 500);
 
-  // Poll every 2 seconds
-  setInterval(pollServer, 2000);
+ // Poll every 10 seconds
+  setInterval(pollServer, 10000);
 </script>
 </body>
 </html>
